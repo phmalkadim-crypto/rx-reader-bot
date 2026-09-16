@@ -1,3 +1,4 @@
 PyTelegramBotAPI
 google-generativeai
 requests
+flask
