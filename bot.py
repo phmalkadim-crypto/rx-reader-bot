@@ -8,24 +8,27 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from flask import Flask
 from threading import Thread
 
-# سيرفر وهمي بسيط لترضية منصة Render وتجنب خطأ البورت
+# 1. تشغيل سيرفر الفلاسك أولاً وبشكل فوري لترضية رندر والبورت
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is running!"
+    return "Bot is running and alive!"
 
 def run_web():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     t = Thread(target=run_web)
     t.start()
 
-# جلب التوكن حصراً من بيئة العمل في Render
+# تشغيل السيرفر فوراً
+keep_alive()
+
+# 2. جلب التوكن ومفاتيح البيئة
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# جلب مفاتيح Gemini حصراً من متغيرات البيئة بدون أي قيم وهمية
 GEMINI_API_KEYS = []
 for i in range(1, 11):
     key = os.environ.get(f"GEMINI_KEY_{i}")
@@ -54,23 +57,20 @@ def get_next_key():
 def generate_content_with_retry(image_path, prompt):
     attempts = len(GEMINI_API_KEYS)
     if attempts == 0:
-        raise Exception("الرجاء إضافة مفاتيح Gemini في Environment Variables على Render.")
+        raise Exception("الرجاء إضافة مفاتيح Gemini في Environment Variables.")
         
     last_exception = None
-
     for _ in range(attempts):
         key = get_next_key()
         try:
             genai.configure(api_key=key)
             model = genai.GenerativeModel('gemini-2.5-flash')
-            
             sample_file = genai.upload_file(image_path)
             response = model.generate_content([sample_file, prompt])
             return response.text
         except Exception as e:
             last_exception = e
             continue
-            
     raise last_exception
 
 def init_db():
@@ -87,14 +87,6 @@ def init_db():
         )
     ''')
     conn.commit()
-    
-    cursor.execute("PRAGMA table_info(users)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if "username" not in columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN username TEXT")
-    if "full_name" not in columns:
-        cursor.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
-    conn.commit()
     conn.close()
 
 init_db()
@@ -110,7 +102,6 @@ def get_user(user_id, username=None, full_name=None):
                        (user_id, username, full_name))
         conn.commit()
         row = (5, None)
-        
         try:
             u_name = f"@{username}" if username else "بدون معرف"
             f_name = full_name if full_name else "بدون اسم"
@@ -170,7 +161,7 @@ def check_subscription(user_id):
             return True
         else:
             return False
-    except Exception as e:
+    except Exception:
         return False
 
 def get_channel_keyboard():
@@ -275,7 +266,7 @@ def handle_admin_input(message):
     if state == "waiting_activate_id":
         try:
             target_id = int(message.text.strip())
-            start_str, expiry_str = add_subscription_days(target_id, 30)
+            add_subscription_days(target_id, 30)
             bot.reply_to(message, f"✅ تم التفعيل لمدة شهر لـ `{target_id}`", parse_mode="Markdown", reply_markup=get_admin_reply_keyboard())
             bot.send_message(target_id, "🎉 مبارك! تم تفعيل اشتراكك الشهري بنجاح.", reply_markup=get_vip_status_keyboard())
         except ValueError:
@@ -309,7 +300,7 @@ def handle_admin_input(message):
         try:
             days = int(message.text.strip())
             target_id = admin_states[ADMIN_ID].get("target_id")
-            start_str, expiry_str = add_subscription_days(target_id, days)
+            add_subscription_days(target_id, days)
             bot.reply_to(message, f"🎁 تم التعويض بـ {days} أيام بنجاح!", parse_mode="Markdown", reply_markup=get_admin_reply_keyboard())
             bot.send_message(target_id, f"🎁 تمت إضافة رصيد تعويض بقيمة {days} أيام!", reply_markup=get_vip_status_keyboard())
         except ValueError:
@@ -384,8 +375,7 @@ def handle_prescription(message):
             os.remove(image_path)
 
 if __name__ == '__main__':
-    keep_alive()
-    print("Bot is running...")
+    print("Bot polling started...")
     while True:
         try:
             bot.polling(non_stop=True, timeout=60, long_polling_timeout=60)
