@@ -6,21 +6,19 @@ import google.generativeai as genai
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-# يتم جلب التوكن والمفاتيح من بيئة العمل في Render لضمان الأمان وعدم الحظر
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+# جلب التوكن حصراً من بيئة العمل في Render
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-GEMINI_API_KEYS = [
-    os.environ.get("GEMINI_KEY_1", "KEY_1_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_2", "KEY_2_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_3", "KEY_3_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_4", "KEY_4_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_5", "KEY_5_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_6", "KEY_6_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_7", "KEY_7_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_8", "KEY_8_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_9", "KEY_9_PLACEHOLDER"),
-    os.environ.get("GEMINI_KEY_10", "KEY_10_PLACEHOLDER")
-]
+# جلب مفاتيح Gemini حصراً من متغيرات البيئة بدون أي قيم وهمية
+GEMINI_API_KEYS = []
+for i in range(1, 11):
+    key = os.environ.get(f"GEMINI_KEY_{i}")
+    if key:
+        GEMINI_API_KEYS.append(key)
+
+# إذا ماكو ولا مفتاح مضاف بالبيئة، ننبهك
+if not GEMINI_API_KEYS:
+    print("⚠️ تنبيه: لم يتم العثور على أي مفتاح Gemini في متغيرات البيئة!")
 
 ADMIN_ID = 569170097
 REQUIRED_CHANNEL = "@Saydlogy"
@@ -32,18 +30,22 @@ current_key_index = 0
 
 def get_next_key():
     global current_key_index
+    if not GEMINI_API_KEYS:
+        raise Exception("لا توجد مفاتيح Gemini مضافة في Environment!")
     key = GEMINI_API_KEYS[current_key_index]
     current_key_index = (current_key_index + 1) % len(GEMINI_API_KEYS)
     return key
 
 def generate_content_with_retry(image_path, prompt):
     attempts = len(GEMINI_API_KEYS)
+    if attempts == 0:
+        raise Exception("الرجاء إضافة مفاتيح Gemini في Environment Variables على Render.")
+        
     last_exception = None
 
     for _ in range(attempts):
         key = get_next_key()
         try:
-            # التعديل هنا: استخدام الطريقة الكلاسيكية المتوافقة مع مفاتيح الـ AQ
             genai.configure(api_key=key)
             model = genai.GenerativeModel('gemini-2.5-flash')
             
