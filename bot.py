@@ -5,6 +5,22 @@ from datetime import datetime, timedelta
 import google.generativeai as genai
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from flask import Flask
+from threading import Thread
+
+# سيرفر وهمي بسيط لترضية منصة Render وتجنب خطأ البورت
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
 
 # جلب التوكن حصراً من بيئة العمل في Render
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -16,7 +32,6 @@ for i in range(1, 11):
     if key:
         GEMINI_API_KEYS.append(key)
 
-# إذا ماكو ولا مفتاح مضاف بالبيئة، ننبهك
 if not GEMINI_API_KEYS:
     print("⚠️ تنبيه: لم يتم العثور على أي مفتاح Gemini في متغيرات البيئة!")
 
@@ -368,9 +383,11 @@ def handle_prescription(message):
         if os.path.exists(image_path):
             os.remove(image_path)
 
-print("Bot is running...")
-while True:
-    try:
-        bot.polling(non_stop=True, timeout=60, long_polling_timeout=60)
-    except Exception as e:
-        time.sleep(5)
+if __name__ == '__main__':
+    keep_alive()
+    print("Bot is running...")
+    while True:
+        try:
+            bot.polling(non_stop=True, timeout=60, long_polling_timeout=60)
+        except Exception as e:
+            time.sleep(5)
