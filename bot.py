@@ -2,7 +2,7 @@ import os
 import sqlite3
 import time
 from datetime import datetime, timedelta
-from google import genai
+import google.generativeai as genai
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -43,12 +43,12 @@ def generate_content_with_retry(image_path, prompt):
     for _ in range(attempts):
         key = get_next_key()
         try:
-            client = genai.Client(api_key=key)
-            sample_file = client.files.upload(file=image_path)
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[sample_file, prompt]
-            )
+            # التعديل هنا: استخدام الطريقة الكلاسيكية المتوافقة مع مفاتيح الـ AQ
+            genai.configure(api_key=key)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            
+            sample_file = genai.upload_file(image_path)
+            response = model.generate_content([sample_file, prompt])
             return response.text
         except Exception as e:
             last_exception = e
