@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from google import genai
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from telebot import apihelper
+from PIL import Image, ImageEnhance
 
 TELEGRAM_BOT_TOKEN = "8868728973:AAGahNwax7cvbyri7-Fy_Guskclq995Dewo"
 DEFAULT_ADMIN_ID = 569170097
@@ -48,7 +48,7 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('free_tries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_username', 'MPh_70')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('required_channel', '@Saydlogy')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_model', 'gemini-2.5-flash')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_model', 'gemini-3.6-flash')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_id', ?)", (str(DEFAULT_ADMIN_ID),))
     
     default_disclaimer = "📌 اخلاء مسؤولية\nهذا البوت هو للمساعده في استذكار العلاج ويجب عليك ان تسأل الصيدلاني."
@@ -57,17 +57,55 @@ def init_db():
     default_welcome = "أهلاً بك! أرسل لي صورة الوصفة الطبية وسأقوم بقراءتها فوراً."
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('welcome_text', ?)", (default_welcome,))
 
-    default_prompt = """أنت صيدلاني استشاري خبير جداً، دقيق ومحترف في قراءة الروشتات والخطوط الطبية اليدوية.
-يرجى قراءة الصورة المرفقة واستخراج أسماء الأدوية وفقاً للتعليمات التالية بدقة متناهية:
+    default_prompt = """أنت خبير متقدم جداً في قراءة أصعب الوصفات الطبية المكتوبة بخط اليد، ومتخصص في فك الخطوط المتشابكة والمختصرة وغير الواضحة، بما فيها الكتابة السريعة للأطباء والاختصارات التجارية الشائعة في الصيدليات العراقية.
 
-1. تفحّص الصورة جيداً، وإن وُجدت أي إشارة إلى اختصاص الطبيب أو عمر المريض أو حالته، فاستفد منها كقرائن طبية لتدقيق قراءة الأدوية الملائمة.
-2. إذا كان اسم الدواء المكتوب باليد مختصراً (مثل Duph أو Fol أو Cal أو Fer أو ما شابه)، قم فوراً بإكمال الاسم التجاري أو العلمي الكامل والمتداول له (ليصبح مثلاً: Duphaston, Folart, Caltrate, Ferose... إلخ) ولا تكتفِ بالمقطع الأول أبداً.
-3. انتبه جيداً للرموز والاختصارات مثل حرف (ع) المتبوع برقم (مثل: ع 4، ع 20، ع 60): حرف (ع) يرمز حصراً إلى "العدد" أو "الكمية" الإجمالية وليست له علاقة بالجرعة أو الشكل الدوائي ولا يجب اعتباره جرعة.
-4. يُذكر حصراً فقط وفقط: اسم العلاج كاملاً، الشكل الدوائي، والجرعة إن وجدت. امنع منعاً باتاً ذكر أي تفاصيل، شروحات، أو عدد مرات الاستخدام.
-5. اكتب النص بشكل عادي وبدون استخدام أي نجوم (**) أو رموز تنسيق (Markdown).
-6. اترك مسافة فارغة (سطر فارغ) بوضوح بين كل علاج والذي يليه.
-7. العلاج الذي يستحيل قراءته تماماً اكتب مكانه حصراً: ------------
-8. في نهاية الرسالة، اترك سطرين فارغين ثم اكتب حرفياً النص التالي بدون أي تعديل:
+مهمتك الأساسية هي الوصول إلى أدق قراءة ممكنة حتى عندما تكون الكتابة شديدة الصعوبة، مع استخدام التحليل البصري متعدد المراحل والسياق الطبي وقاعدة الأدوية المغلقة.
+
+اتبع القواعد التالية بدقة:
+
+1. التحليل البصري المتقدم:
+   افحص كل اسم دواء بصورة مستقلة. حلل طول الكلمة، وعدد الحروف المحتملة، وشكل الحروف الأولى والأخيرة، واتصال الحروف، واتجاه الضربات، والارتفاعات والانحناءات والنقاط، والمسافات بين الحروف، والأرقام والرموز المحيطة. لا تعتمد على الانطباع الأولي وحده.
+
+2. تعدد فرضيات القراءة:
+   عندما يكون الاسم غامضاً، أنشئ داخلياً عدة قراءات محتملة للكلمة، ثم قارنها بصرياً مع الصورة الأصلية. استبعد الاحتمالات التي لا تتوافق مع شكل الحروف، ولا تختَر اسماً لمجرد أنه دواء شائع.
+
+3. القاموس الدوائي المغلق:
+   قارن الاحتمالات بالأسماء العلمية والتجارية الحقيقية للأدوية المتداولة في العراق. لا تخترع أسماء تجارية، ولا تفترض وجود دواء لمجرد تشابه اسمه. إذا لم تتوفر قاعدة بيانات فعلية، فلا تدّعِ أنك بحثت فيها.
+
+4. الاستفادة من السياق:
+   استخدم اختصاص الطبيب وعمر المريض والمعلومات الظاهرة في الوصفة، إن توفرت، لترجيح الاحتمالات المتوافقة. اجعل شكل الحروف الدليل الأساسي، والسياق الطبي دليلاً مساعداً فقط. لا تسمح للسياق بأن يحوّل اسماً غير متطابق بصرياً إلى اسم مؤكد.
+
+5. فك الاختصارات:
+   ابحث عن الاختصارات الطبية والتجارية المعتادة، وحاول إكمالها إلى الاسم الصحيح باللغة الإنجليزية عندما يتوافق شكل الكتابة مع الاسم المحتمل. أمثلة ذلك Duph وFol وCal وFer. لا تعتبر هذه الاختصارات دليلاً كافياً وحدها، لأن كل اختصار قد يشير إلى أكثر من مستحضر.
+
+6. قراءة التركيز والشكل والكمية:
+   افصل بين اسم الدواء والتركيز والشكل الدوائي والجرعة والكمية الإجمالية. اعتبر الرمز (ع) المتبوعاً برقم كميةً إجمالية عندما يتوافق موضعه وسياقه مع هذا الاستخدام، ولا تفسره على أنه جرعة أو شكل دوائي. لا تستنتج أي رقم غير واضح.
+
+7. تحسين القراءة:
+   استفد من جميع التفاصيل المرئية في الصورة، بما فيها الكلمات القريبة، وتكرار نمط كتابة الطبيب للحروف نفسها في الأدوية الأخرى. إذا توفرت صورة أصلية وصورة معالجة، فقارن بينهما ولا تعتبر الصورة المعالجة مصدراً معصوماً من التشويه.
+
+8. مقاومة الهلوسة:
+   لا تستبدل الدواء غير المقروء باسم شائع لمجرد إكمال القائمة. لا تخترع تركيزاً أو شكلاً دوائياً غير ظاهر. لا تكرر الاسم نفسه لملء الفراغات. لا تدّعِ اليقين عندما لا تسمح الصورة بذلك.
+
+9. قاعدة القرار النهائي:
+   إذا كان هناك اسم يمكن قراءته بدرجة معقولة من التطابق البصري مع الاستفادة من السياق، فاكتب الاسم الكامل باللغة الإنجليزية، والشكل الدوائي والتركيز عندما يكونان قابلين للتحديد.
+   إذا تعذر تحديد الاسم بصورة موثوقة بعد مقارنة الاحتمالات، فاكتب حصراً:
+---
+
+10. تنسيق الإخراج الإلزامي:
+    اكتب أسماء الأدوية باللغة الإنجليزية فقط.
+    اكتب اسم العلاج كاملاً، ثم الشكل الدوائي مثل tab أو cap أو syr، ثم التركيز إذا أمكن قراءته.
+    مثال على التنسيق:
+    pansdol tab 500mg
+
+لا تكتب أي عناوين أو مقدمات أو تفسيرات أو درجات ثقة أو احتمالات أو شروحات عربية.
+لا تستخدم النجوم أو التعداد النقطي أو أرقام التسلسل أو أي تنسيق Markdown.
+اترك سطراً فارغاً بين كل علاج والذي يليه.
+لا تضف معلومات غير موجودة في الوصفة.
+إذا تعذر تحديد علاج بالكامل، فاكتب ------------
+ولا تستبدل هذا الرمز بأي نص آخر.
+
+في نهاية الإجابة، اترك سطرين فارغين ثم أدرج النص التالي حرفياً دون تعديل:
 
 {disclaimer_saved}"""
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('prescription_prompt', ?)", (default_prompt,))
@@ -115,13 +153,38 @@ def get_next_key_from_db():
     current_key_index += 1
     return key_value
 
+def preprocess_image(input_path, output_path):
+    """تحسين تباين الصورة وزيادة وضوحها لتسهيل قراءة الخطوط الطبية"""
+    try:
+        img = Image.open(input_path).convert('L') # تحويل إلى تدرج الرمادي
+        enhancer_contrast = ImageEnhance.Contrast(img)
+        img_contrasted = enhancer_contrast.enhance(2.0) # زيادة التباين للضعف
+        
+        enhancer_sharpness = ImageEnhance.Sharpness(img_contrasted)
+        img_final = enhancer_sharpness.enhance(2.0) # زيادة الحدة لإبراز الحروف
+        
+        img_final.save(output_path, quality=95)
+    except Exception:
+        # في حال حدوث أي خطأ، يتم نسخ الصورة الأصلية كبديل
+        if input_path != output_path:
+            with open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
+                f_out.write(f_in.read())
+
+def clean_markdown_text(text):
+    """تطهير النص وإزالة أي نجوم أو تنسيقات Markdown عشوائية قد تظهر"""
+    if not text:
+        return ""
+    # إزالة علامات النجوم الثلاثية والثمانية والمنفردة الخاصة بالـ Markdown
+    cleaned = text.replace("**", "").replace("*", "").replace("`", "")
+    return cleaned.strip()
+
 def generate_content_with_retry(image_path, prompt):
     keys = get_all_keys()
     if not keys:
         raise Exception("لا توجد مفاتيح API مخزنة!")
         
     attempts = len(keys)
-    model_name = get_setting('ai_model') or 'gemini-2.5-flash'
+    model_name = get_setting('ai_model') or 'gemini-3.6-flash'
 
     last_error = None
     for _ in range(attempts):
@@ -142,7 +205,7 @@ def generate_content_with_retry(image_path, prompt):
                     prompt
                 ]
             )
-            return response.text
+            return clean_markdown_text(response.text)
         except Exception as e:
             last_error = e
             time.sleep(0.5)
@@ -391,7 +454,7 @@ def callback_settings_buttons(call):
         bot.send_message(admin_id, "📢 أرسل الآن **معرف القناة الإجبارية الجديدة** (مع علامة @، مثال: `@MyChannel`):", parse_mode="Markdown")
     elif call.data == "set_ai_model":
         admin_states[admin_id] = {"action": "waiting_new_ai_model"}
-        bot.send_message(admin_id, "🤖 أرسل الآن **اسم نموذج الذكاء الاصطناعي الجديد** (مثال: `gemini-2.5-flash`):", parse_mode="Markdown")
+        bot.send_message(admin_id, "🤖 أرسل الآن **اسم نموذج الذكاء الاصطناعي الجديد** (مثال: `gemini-3.6-flash`):", parse_mode="Markdown")
     elif call.data == "set_welcome_msg":
         admin_states[admin_id] = {"action": "waiting_new_welcome"}
         bot.send_message(admin_id, "💬 أرسل الآن **رسالة الترحيب الجديدة** التي تظهر للمستخدم عند إرسال `/start`:", parse_mode="Markdown")
@@ -457,7 +520,7 @@ def callback_check_api_keys(call):
     bot.answer_callback_query(call.id, "⏳ جاري فحص جميع المفاتيح...")
     
     keys = get_all_keys()
-    model_name = get_setting('ai_model') or 'gemini-2.5-flash'
+    model_name = get_setting('ai_model') or 'gemini-3.6-flash'
     report_lines = [
         "🔍 تقرير فحص مفاتيح الـ API:\n",
         f"📌 إجمالي المفاتيح: {len(keys)}\n"
@@ -803,19 +866,25 @@ def handle_prescription(message):
 
     msg = bot.reply_to(message, "⏳ جاري قراءة الوصفة الطبية بدقة، ثوانٍ...")
     
-    image_path = f"prescription_{user_id}_{message.message_id}.jpg"
+    raw_image_path = f"raw_{user_id}_{message.message_id}.jpg"
+    processed_image_path = f"processed_{user_id}_{message.message_id}.jpg"
+    
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        with open(image_path, 'wb') as new_file:
+        with open(raw_image_path, 'wb') as new_file:
             new_file.write(downloaded_file)
+            
+        # معالجة الصورة وتحسين التباين والحدة تلقائياً
+        preprocess_image(raw_image_path, processed_image_path)
             
         disclaimer_saved = get_setting('disclaimer_text') or "📌 اخلاء مسؤولية\nهذا البوت هو للمساعده في استذكار العلاج ويجب عليك ان تسأل الصيدلاني."
         prompt_template = get_setting('prescription_prompt') or ""
         
         prompt = prompt_template.format(disclaimer_saved=disclaimer_saved)
         
-        result_text = generate_content_with_retry(image_path, prompt)
+        # إرسال الصورة المعالجة للنموذج
+        result_text = generate_content_with_retry(processed_image_path, prompt)
         
         bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=msg.message_id)
         
@@ -830,8 +899,10 @@ def handle_prescription(message):
         bot.edit_message_text("عذراً، حدث ضغط مؤقت في الخدمة، يرجى إرسال الصورة من جديد 📷", chat_id=message.chat.id, message_id=msg.message_id)
         
     finally:
-        if os.path.exists(image_path):
-            os.remove(image_path)
+        if os.path.exists(raw_image_path):
+            os.remove(raw_image_path)
+        if os.path.exists(processed_image_path):
+            os.remove(processed_image_path)
 
 print("البوت يعمل بكفاءة وقابل للتعديل بالكامل من التليجرام...")
 
