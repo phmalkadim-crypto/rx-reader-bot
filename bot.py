@@ -6,7 +6,6 @@ from google import genai
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telebot import apihelper
-from PIL import Image, ImageEnhance
 
 TELEGRAM_BOT_TOKEN = "8868728973:AAGahNwax7cvbyri7-Fy_Guskclq995Dewo"
 DEFAULT_ADMIN_ID = 569170097
@@ -45,12 +44,13 @@ def init_db():
     ''')
     conn.commit()
     
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('sub_price', '3,000 د.ع')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('free_tries_limit', '3')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_username', 'MPh_70')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('required_channel', '@Saydlogy')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_model', 'gemini-2.5-flash')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_id', ?)", (str(DEFAULT_ADMIN_ID),))
+    # استخدام REPLACE لتحديث الإعدادات الأساسية قسراً ومنع أي قيم قديمة عالقة
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('sub_price', '3,000 د.ع')")
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('free_tries_limit', '3')")
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_username', 'MPh_70')")
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('required_channel', '@Saydlogy')")
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_model', 'gemini-2.5-flash')")
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_id', ?)", (str(DEFAULT_ADMIN_ID),))
     
     default_disclaimer = "📌 اخلاء مسؤولية\nهذا البوت هو للمساعده في استذكار العلاج ويجب عليك ان تسأل الصيدلاني."
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('disclaimer_text', ?)", (default_disclaimer,))
@@ -115,22 +115,6 @@ def get_next_key_from_db():
     key_id, key_value = keys[current_key_index]
     current_key_index += 1
     return key_value
-
-def preprocess_image(input_path, output_path):
-    """تحسين تباين الصورة وزيادة وضوحها لتسهيل قراءة الخطوط"""
-    try:
-        img = Image.open(input_path).convert('L')
-        enhancer_contrast = ImageEnhance.Contrast(img)
-        img_contrasted = enhancer_contrast.enhance(2.0)
-        
-        enhancer_sharpness = ImageEnhance.Sharpness(img_contrasted)
-        img_final = enhancer_sharpness.enhance(2.0)
-        
-        img_final.save(output_path, quality=95)
-    except Exception:
-        if input_path != output_path:
-            with open(input_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
-                f_out.write(f_in.read())
 
 def generate_content_with_retry(image_path, prompt):
     keys = get_all_keys()
@@ -820,24 +804,19 @@ def handle_prescription(message):
 
     msg = bot.reply_to(message, "⏳ جاري قراءة الوصفة الطبية بدقة، ثوانٍ...")
     
-    raw_image_path = f"raw_{user_id}_{message.message_id}.jpg"
-    processed_image_path = f"processed_{user_id}_{message.message_id}.jpg"
-    
+    image_path = f"prescription_{user_id}_{message.message_id}.jpg"
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        with open(raw_image_path, 'wb') as new_file:
+        with open(image_path, 'wb') as new_file:
             new_file.write(downloaded_file)
-            
-        # معالجة الصورة وتحسين التباين والحدة
-        preprocess_image(raw_image_path, processed_image_path)
             
         disclaimer_saved = get_setting('disclaimer_text') or "📌 اخلاء مسؤولية\nهذا البوت هو للمساعده في استذكار العلاج ويجب عليك ان تسأل الصيدلاني."
         prompt_template = get_setting('prescription_prompt') or ""
         
         prompt = prompt_template.format(disclaimer_saved=disclaimer_saved)
         
-        result_text = generate_content_with_retry(processed_image_path, prompt)
+        result_text = generate_content_with_retry(image_path, prompt)
         
         bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=msg.message_id)
         
@@ -852,10 +831,8 @@ def handle_prescription(message):
         bot.edit_message_text("عذراً، حدث ضغط مؤقت في الخدمة، يرجى إرسال الصورة من جديد 📷", chat_id=message.chat.id, message_id=msg.message_id)
         
     finally:
-        if os.path.exists(raw_image_path):
-            os.remove(raw_image_path)
-        if os.path.exists(processed_image_path):
-            os.remove(processed_image_path)
+        if os.path.exists(image_path):
+            os.remove(image_path)
 
 print("البوت يعمل بكفاءة وقابل للتعديل بالكامل من التليجرام...")
 
