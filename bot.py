@@ -1,4 +1,4 @@
-import os
+Import os
 import sqlite3
 import time
 from datetime import datetime, timedelta
@@ -44,13 +44,12 @@ def init_db():
     ''')
     conn.commit()
     
-    # استخدام REPLACE لتحديث الإعدادات الأساسية قسراً ومنع أي قيم قديمة عالقة
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('sub_price', '3,000 د.ع')")
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('free_tries_limit', '3')")
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_username', 'MPh_70')")
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('required_channel', '@Saydlogy')")
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_model', 'gemini-2.5-flash')")
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_id', ?)", (str(DEFAULT_ADMIN_ID),))
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('sub_price', '3,000 د.ع')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('free_tries_limit', '3')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_username', 'MPh_70')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('required_channel', '@Saydlogy')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ai_model', 'gemini-2.5-flash')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('admin_id', ?)", (str(DEFAULT_ADMIN_ID),))
     
     default_disclaimer = "📌 اخلاء مسؤولية\nهذا البوت هو للمساعده في استذكار العلاج ويجب عليك ان تسأل الصيدلاني."
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('disclaimer_text', ?)", (default_disclaimer,))
